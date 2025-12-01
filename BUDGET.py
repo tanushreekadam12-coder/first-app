@@ -1,184 +1,87 @@
 import streamlit as st
-import pandas as pd
-import matplotlib.pyplot as plt
+import csv
 
-# --------------------------
-# Page Configuration
-# --------------------------
-st.set_page_config(
-    page_title="Budget Analysis Dashboard",
-    page_icon="📊",
-    layout="wide"
-)
+st.set_page_config(page_title="Budget Analyzer", page_icon="📊", layout="wide")
 
-# --------------------------
-# Custom CSS for UI Styling
-# --------------------------
+# ------------------  SIMPLE CLEAN UI ------------------
 st.markdown("""
-    <style>
-        .main-title {
-            background: linear-gradient(90deg, #4e54c8, #8f94fb);
-            padding: 20px;
-            border-radius: 15px;
-            color: white;
-            text-align: center;
-            font-size: 40px;
-            font-weight: 900;
-            margin-bottom: 20px;
-        }
-        .feature-button {
-            background-color: #6C63FF;
-            padding: 15px;
-            border-radius: 12px;
-            color: white;
-            font-size: 18px;
-            font-weight: bold;
-            text-align: center;
-            cursor: pointer;
-            transition: 0.3s;
-            border: 2px solid #ffffff10;
-        }
-        .feature-button:hover {
-            background-color: #5149e6;
-            transform: scale(1.02);
-        }
-        .card {
-            background-color: #f8f9ff;
-            padding: 20px;
-            border-radius: 15px;
-            margin-bottom: 10px;
-            border: 1px solid #e4e6ff;
-        }
-        .metric-box {
-            background: #ffffff;
-            padding: 20px;
-            border-radius: 15px;
-            border: 2px solid #dcdcff;
-            text-align: center;
-            font-size: 20px;
-            font-weight: bold;
-        }
-    </style>
+    <h1 style="text-align:center; 
+               background:linear-gradient(90deg,#4e54c8,#8f94fb);
+               padding:18px;border-radius:12px;color:white;">
+        📊 Budget Analysis Dashboard
+    </h1>
 """, unsafe_allow_html=True)
 
-# --------------------------
-# Header
-# --------------------------
-st.markdown('<div class="main-title">📊 Budget Analysis Dashboard (2014–2025)</div>', unsafe_allow_html=True)
+st.write("Upload a CSV file with at least **Year** and **Budget** columns.")
 
-# --------------------------
-# Load Data
-# --------------------------
-df = pd.read_csv("Budget 2014-2025.csv")
+# ------------------ FILE UPLOADER ------------------
+file = st.file_uploader("Upload Budget CSV", type=["csv"])
 
-# Convert Year to numeric if not already
-df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
+if not file:
+    st.stop()
 
-# --------------------------
-# Feature Selection Section
-# --------------------------
-st.subheader("✨ Choose an Analysis Feature")
+# ------------------ READ CSV WITHOUT PANDAS ------------------
+data = []
+reader = csv.DictReader(file)
+cols = reader.fieldnames
 
-col1, col2, col3 = st.columns(3)
+for row in reader:
+    data.append(row)
 
-with col1:
-    feature = st.radio(
-        "",
-        ["📈 Year-wise Trend", "💸 Revenue vs Expenditure"],
-        help="Select the analysis you want to perform"
-    )
+if len(data) == 0:
+    st.error("CSV is empty.")
+    st.stop()
 
-with col2:
-    feature2 = st.radio(
-        "",
-        ["📊 Category Comparison", "🏦 Summary Statistics"],
-        help="Additional analytics"
-    )
+# ------------------ COLUMN SELECTION ------------------
+year_col = st.selectbox("Select Year Column", cols)
+budget_col = st.selectbox("Select Budget Column", cols)
 
-with col3:
-    feature3 = st.radio(
-        "",
-        ["📉 Deficit / Surplus Trend", "🔍 Detailed Table"],
-        help="More insights"
-    )
+# ------------------ CLEAN + CONVERT DATA ------------------
+clean_years = []
+clean_budgets = []
 
+for row in data:
+    try:
+        year = int(float(row[year_col]))
+        budget_str = row[budget_col].replace(",", "").replace("₹", "")
+        budget = float(budget_str)
+        clean_years.append(year)
+        clean_budgets.append(budget)
+    except:
+        pass
 
-# --------------------------
-# Plotting Helper
-# --------------------------
-def plot_line(x, y, title, ylabel):
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.plot(x, y)
-    ax.set_title(title)
-    ax.set_xlabel("Year")
-    ax.set_ylabel(ylabel)
-    ax.grid(True)
-    st.pyplot(fig)
+if len(clean_years) == 0:
+    st.error("Could not convert Year/Budget values. Check your CSV format.")
+    st.stop()
 
+# ------------------ SHOW RAW TABLE ------------------
+if st.checkbox("Show Raw Data Table"):
+    st.table(data)
 
-# --------------------------
-# Cards for Results
-# --------------------------
-st.markdown("### 📁 Analysis Output")
-st.markdown('<div class="card">', unsafe_allow_html=True)
+# ------------------ ANALYSIS ------------------
+st.subheader("📈 Budget Trend")
 
-# ========== Feature 1 ==========
-if feature == "📈 Year-wise Trend":
-    st.write("### 📈 Year-wise Budget Trend")
-    numeric_cols = df.select_dtypes(include="number").columns
-    col = st.selectbox("Select a Column to Visualize:", numeric_cols)
-    plot_line(df["Year"], df[col], f"{col} Over the Years", col)
+# STREAMLIT CHART (no pandas needed)
+chart_data = {"Year": clean_years, "Budget": clean_budgets}
 
-elif feature == "💸 Revenue vs Expenditure":
-    st.write("### 💸 Revenue vs Expenditure Comparison")
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.plot(df["Year"], df["Revenue"], label="Revenue")
-    ax.plot(df["Year"], df["Expenditure"], label="Expenditure")
-    ax.legend()
-    ax.set_title("Revenue vs Expenditure")
-    ax.grid(True)
-    st.pyplot(fig)
+st.line_chart(chart_data, x="Year", y="Budget")
 
-# ========== Feature 2 ==========
-if feature2 == "📊 Category Comparison":
-    st.write("### 📊 Compare Any Two Columns")
-    colA = st.selectbox("Column A", df.columns)
-    colB = st.selectbox("Column B", df.columns)
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.plot(df["Year"], df[colA], label=colA)
-    ax.plot(df["Year"], df[colB], label=colB)
-    ax.legend()
-    ax.grid(True)
-    ax.set_title(f"{colA} vs {colB}")
-    st.pyplot(fig)
+# ------------------ METRICS ------------------
+st.subheader("📊 Summary Statistics")
 
-elif feature2 == "🏦 Summary Statistics":
-    st.write("### 🏦 Summary of Budget Data")
-    st.dataframe(df.describe())
+total = sum(clean_budgets)
+avg = total / len(clean_budgets)
+max_budget = max(clean_budgets)
+min_budget = min(clean_budgets)
+max_year = clean_years[clean_budgets.index(max_budget)]
+min_year = clean_years[clean_budgets.index(min_budget)]
 
-# ========== Feature 3 ==========
-if feature3 == "📉 Deficit / Surplus Trend":
-    st.write("### 📉 Deficit / Surplus Over the Years")
-    if "Revenue" in df.columns and "Expenditure" in df.columns:
-        df["Deficit/Surplus"] = df["Revenue"] - df["Expenditure"]
-        plot_line(df["Year"], df["Deficit/Surplus"], "Deficit / Surplus Trend", "Amount")
-        st.metric("Latest Year Balance", value=df["Deficit/Surplus"].iloc[-1])
-    else:
-        st.error("Revenue or Expenditure columns missing, cannot calculate balance.")
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Total Budget", f"{total:,.2f}")
+col2.metric("Average Budget", f"{avg:,.2f}")
+col3.metric("Highest Budget Year", f"{max_year} → {max_budget:,.2f}")
+col4.metric("Lowest Budget Year", f"{min_year} → {min_budget:,.2f}")
 
-elif feature3 == "🔍 Detailed Table":
-    st.write("### 🔍 Complete Budget Dataset")
-    st.dataframe(df)
+# ------------------ FOOTER ------------------
+st.markdown("<hr><center>Made with ❤️ using Streamlit</center>", unsafe_allow_html=True)
 
-st.markdown('</div>', unsafe_allow_html=True)
-
-
-# --------------------------
-# Footer
-# --------------------------
-st.markdown("""
-<hr>
-<center>
-Made with ❤️ using Streamlit  
-</center>
-""", unsafe_allow_html=True)
